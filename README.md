@@ -1,6 +1,6 @@
 # Microformat
 
-TODO: Write a gem description
+A basic microformat parser. Handles only [Product](http://schema.org/Product) at the moment.
 
 ## Installation
 
@@ -18,7 +18,7 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+    Microformat::SchemaOrg.parse '<your><html>'
 
 ## Contributing
 

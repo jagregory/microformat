@@ -1,5 +1,101 @@
-require "microformat/version"
+require 'microformat/version'
+require 'nokogiri'
+require 'andand'
 
 module Microformat
-  # Your code goes here...
+  class ItemProp
+    def self.parse(node)
+      # If the element has no itemprop attribute
+      # The attribute must return null on getting and must throw an INVALID_ACCESS_ERR exception on setting.
+      return nil unless node.attribute('itemprop')
+
+      # If the element has an itemscope attribute
+      # The attribute must return the element itself on getting and must throw an INVALID_ACCESS_ERR exception on setting.
+      return ItemScope.new(node) if node.attribute('itemscope')
+
+      # If the element is a meta element
+      # The attribute must act as it would if it was reflecting the element's content content attribute
+      return node.attribute('content').andand.value if node.name == 'meta'
+
+      # If the element is an audio, embed, iframe, img, source, track, or video element
+      # The attribute must act as it would if it was reflecting the element's src content attribute.
+      return node.attribute('src').andand.value if ['audio', 'embed', 'iframe', 'img', 'source', 'track', 'video'].include? node.name
+
+      # If the element is an a, area, or link element
+      # The attribute must act as it would if it was reflecting the element's href content attribute.
+      return node.attribute('href').andand.value if ['a', 'area', 'link'].include? node.name
+
+      # If the element is an object element
+      # The attribute must act as it would if it was reflecting the element's data content attribute.
+      return node.attribute('data').andand.value if node.name == 'object'
+
+      # If the element is a time element with a datetime attribute
+      # The attribute must act as it would if it was reflecting the element's datetime content attribute.
+      return node.attribute('datetime').andand.value if node.name == 'time' && node.attribute('datetime')
+
+      # Otherwise
+      # The attribute must act the same as the element's textContent attribute.
+      return node.text.chomp.strip
+    end
+  end
+
+  class ItemScope
+    attr_reader :type, :id
+
+    def initialize(node)
+      @type = attr 'itemtype', node
+      @id = attr 'itemid', node
+      @properties = {}
+
+      parse_elements node.search './*'
+    end
+
+    def [](name)
+      @properties[name]
+    end
+
+    private
+    def attr(name, node)
+      val = node.attribute name
+      val ? val.value : nil
+    end
+
+    def parse_elements(elements)
+      elements.each do |el|
+        itemprop = attr('itemprop', el)
+        prop = ItemProp.parse el
+
+        if prop
+          @properties[itemprop] ||= []
+          @properties[itemprop] << prop
+        else
+          parse_elements el.search('./*')
+        end
+      end
+    end
+  end
+
+  class ItemDocument
+    def initialize(scopes)
+      @scopes = scopes
+    end
+
+    def products
+      @scopes.select { |x| x.type == 'http://schema.org/Product' }
+    end
+  end
+
+  class SchemaOrg
+    def self.parse(html)
+      html = Nokogiri::HTML.parse html unless html.respond_to? :search
+      scopes = html.search('//*[@itemscope and not(@itemprop)]')
+        .map { |node| ItemScope.new node }
+
+      if scopes.any?
+        ItemDocument.new scopes
+      else
+        nil
+      end
+    end
+  end
 end
