@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'microformat/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = 'microformat'
+  spec.name          = 'otg-microformat'
   spec.version       = Microformat::VERSION
   spec.authors       = ['On the Game, James Gregory']
   spec.email         = ['james@onthegame.com.au']
