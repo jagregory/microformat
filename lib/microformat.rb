@@ -76,12 +76,14 @@ module Microformat
   end
 
   class ItemDocument
+    attr_reader :scopes
+
     def initialize(scopes)
       @scopes = scopes
     end
 
     def products
-      @scopes.select { |x| x.type == 'http://schema.org/Product' }
+      @scopes.select { |x| x.type =~ /\/product$/i }
     end
   end
 
