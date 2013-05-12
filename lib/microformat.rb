@@ -4,15 +4,26 @@ require 'andand'
 
 module Microformat
   class ItemProp
-    def self.parse(node)
+    def self.parse(node, strict)
       # If the element has no itemprop attribute
       # The attribute must return null on getting and must throw an INVALID_ACCESS_ERR exception on setting.
       return nil unless node.attribute('itemprop')
 
       # If the element has an itemscope attribute
       # The attribute must return the element itself on getting and must throw an INVALID_ACCESS_ERR exception on setting.
-      return ItemScope.new(node) if node.attribute('itemscope')
+      return ItemScope.new(node, strict) if node.attribute('itemscope')
 
+      if strict
+        parse_strict node
+      else
+        parse_weak node
+      end
+    end
+
+    private
+    ATTRIBUTES = ['content', 'src', 'href', 'data', 'datetime']
+
+    def self.parse_strict(node)
       # If the element is a meta element
       # The attribute must act as it would if it was reflecting the element's content content attribute
       return node.attribute('content').andand.value if node.name == 'meta'
@@ -37,15 +48,20 @@ module Microformat
       # The attribute must act the same as the element's textContent attribute.
       return node.text.chomp.strip
     end
+
+    def self.parse_weak(node)
+      ATTRIBUTES.map { |attr| node.attribute(attr).andand.value }.compact.first || node.text.chomp.strip
+    end
   end
 
   class ItemScope
     attr_reader :type, :id
 
-    def initialize(node)
+    def initialize(node, strict)
       @type = attr 'itemtype', node
       @id = attr 'itemid', node
       @properties = {}
+      @strict = strict
 
       parse_elements node.search './*'
     end
@@ -63,14 +79,14 @@ module Microformat
     def parse_elements(elements)
       elements.each do |el|
         itemprop = attr('itemprop', el)
-        prop = ItemProp.parse el
+        prop = ItemProp.parse el, @strict
 
         if prop
           @properties[itemprop] ||= []
           @properties[itemprop] << prop
-        else
-          parse_elements el.search('./*')
         end
+
+        parse_elements el.search('./*')
       end
     end
   end
@@ -88,10 +104,11 @@ module Microformat
   end
 
   class SchemaOrg
-    def self.parse(html)
+    def self.parse(html, opts={})
+      strict = opts.has_key? :strict ? opts[:strict] : true
       html = Nokogiri::HTML.parse html unless html.respond_to? :search
       scopes = html.search('//*[@itemscope and not(@itemprop)]')
-        .map { |node| ItemScope.new node }
+        .map { |node| ItemScope.new node, strict }
 
       if scopes.any?
         ItemDocument.new scopes
